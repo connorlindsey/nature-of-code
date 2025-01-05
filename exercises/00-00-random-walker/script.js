@@ -3,7 +3,7 @@ import p5 from "p5"
 
 const gui = new GUI()
 const debug = {
-  walkMethod: "Random",
+  walkMethod: "Perlin Noise",
 }
 
 // 00 - Random Walker
@@ -22,6 +22,7 @@ new p5((p) => {
       "Towards Mouse",
       "Gaussian Steps",
       "Custom Probability",
+      "Perlin Noise",
     ])
   }
 
@@ -92,6 +93,12 @@ new p5((p) => {
         }
         this.x += xstep
         this.y += ystep
+      } else if (debug.walkMethod === "Perlin Noise") {
+        this.x = p.map(p.noise(this.tx), 0, 1, 0, p.width)
+        this.y = p.map(p.noise(this.ty), 0, 1, 0, p.height)
+
+        this.tx += 0.005
+        this.ty += 0.005
       }
     }
 
@@ -115,6 +122,8 @@ new p5((p) => {
     init() {
       this.x = p.width / 2
       this.y = p.height / 2
+      this.tx = 0
+      this.ty = 500
     }
   }
 })
