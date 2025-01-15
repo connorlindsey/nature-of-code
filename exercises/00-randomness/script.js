@@ -6,6 +6,166 @@ const debug = {
   walkMethod: "Perlin Noise",
 }
 
+/**
+ * Random Audio Walker
+ *
+ * Ideas to extend:
+ * - Random walk within a scale or 'real' notes
+ * - Multiple instruments with different parameters for bass, melody, etc.
+ * - Customize oscillator further for more interesting sounds
+ * - Experiment with effects or additional modulation (DelayNode)
+ * - Randomize the overall note frequency (top level setInterval duration)
+ */
+const audioGui = gui.addFolder("Random Audio Walker")
+
+debug.audioWalker = {
+  audioState: "playing",
+  walkSpeed: 10,
+  minFreq: 300,
+  maxFreq: 1000,
+  durationMean: 450,
+  durationSpread: 80,
+  shiftChance: 0.1,
+  shiftAmount: 50,
+}
+
+audioGui.add(debug.audioWalker, "walkSpeed", 0.1, 25).name("Walk Speed")
+audioGui.add(debug.audioWalker, "minFreq", 20, 4000).name("Min Frequency (Hz)")
+audioGui.add(debug.audioWalker, "maxFreq", 20, 4000).name("Max Frequency (Hz)")
+audioGui.add(debug.audioWalker, "durationMean", 100, 500).name("Note Duration (ms)")
+audioGui.add(debug.audioWalker, "durationSpread", 0, 200).name("Duration Spread")
+audioGui.add(debug.audioWalker, "shiftChance", 0, 1).name("Shift Chance")
+audioGui.add(debug.audioWalker, "shiftAmount", 0, 500).name("Shift Amount")
+
+// Visualization
+let notes = []
+
+new p5((p) => {
+  p.setup = () => {
+    // Set up p5 canvas
+    const canvas = p.createCanvas(640, 400)
+    canvas.parent("audio-walker")
+
+    // Set up audio context and node graph
+    // Osc -> Gain -> Pan -> Output
+    const audioCtx = new AudioContext()
+
+    const pannerOptions = { pan: 0 }
+    const pannerNode = new StereoPannerNode(audioCtx, pannerOptions)
+
+    pannerNode.connect(audioCtx.destination)
+
+    const gainNode = audioCtx.createGain()
+    gainNode.connect(pannerNode)
+
+    let shift = 0
+
+    // Debug
+    audioGui
+      .add(
+        {
+          toggleState: () => {
+            debug.audioWalker.audioState = debug.audioWalker.audioState === "playing" ? "paused" : "playing"
+          },
+        },
+        "toggleState",
+      )
+      .name("Play/Pause")
+
+    setInterval(() => {
+      if (debug.audioWalker.audioState === "playing") {
+        const oscillator = audioCtx.createOscillator()
+        oscillator.connect(gainNode)
+        oscillator.start()
+
+        // Reset gain to 1 (full volume) before starting the oscillator
+        gainNode.gain.setValueAtTime(1, audioCtx.currentTime)
+
+        // Chance to jump notes
+        const roll = p.random(1)
+        if (roll < debug.audioWalker.shiftChance) {
+          console.log("Shift")
+          shift += debug.audioWalker.shiftAmount
+        }
+
+        const randomFreq = p.map(
+          p.noise(audioCtx.currentTime / debug.audioWalker.walkSpeed + shift),
+          0,
+          1,
+          debug.audioWalker.minFreq,
+          debug.audioWalker.maxFreq,
+        )
+        oscillator.frequency.value = randomFreq
+
+        // Adjust duration to affect how stoccato/legato the notes are
+        const duration = Math.max(
+          Math.min(p.randomGaussian(debug.audioWalker.durationMean, debug.audioWalker.durationSpread), 500),
+          0,
+        )
+
+        // Randomly pan the audio
+        const randomPan = p.map(
+          p.noise(audioCtx.currentTime / debug.audioWalker.walkSpeed + shift + 100),
+          0,
+          1,
+          -1,
+          1,
+        )
+        pannerNode.pan.setValueAtTime(randomPan, audioCtx.currentTime)
+
+        // Fade out before stopping
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000)
+
+        notes.push(new NoteViz(randomFreq, randomPan, duration))
+
+        setTimeout(() => {
+          oscillator.stop()
+          oscillator.disconnect()
+        }, duration)
+      }
+    }, 600)
+  }
+
+  p.draw = () => {
+    p.background(255)
+
+    // Draw notes
+    notes.forEach((note) => note.draw(p))
+    notes = notes.filter((note) => !note.isFinished())
+  }
+
+  class NoteViz {
+    constructor(freq, pan, duration) {
+      this.freq = freq
+      this.pan = pan
+      // Keep visualization longer than audio
+      this.duration = duration * 3
+      this.start = performance.now()
+
+      // Calculate x coords based on freq
+      // Currently based on 'absolute' frequency so that the notes are in the same place
+      // even as the min/max freq changes.
+      this.x = p.map(freq, 0, 4000, 0, p.width)
+    }
+
+    draw(p) {
+      const b = p.map(this.pan, -1, 0, 0, 255)
+      const g = p.map(this.pan, 0, 1, 255, 0)
+      const alpha = p.map(this.start, performance.now() - this.duration, performance.now(), 0, 255)
+
+      p.noStroke()
+      p.fill(0, g, b, alpha)
+      p.circle(this.x, p.height / 2 - 20, 40)
+    }
+
+    isFinished() {
+      return performance.now() - this.start > this.duration
+    }
+  }
+})
+
+const rndDbg = gui.addFolder("Misc")
+
 // 00 - Random Walker
 new p5((p) => {
   let walker
@@ -15,7 +175,7 @@ new p5((p) => {
     canvas.parent("00")
     walker = new Walker()
 
-    gui.add(debug, "walkMethod", [
+    rndDbg.add(debug, "walkMethod", [
       "Random",
       "Biased Random",
       "Roll",
