@@ -16,3 +16,7 @@ a:not([class]) {
 .wrapper {
   @apply max-w-2xl mx-auto px-6 py-8;
 }
+
+.subtitle {
+  @apply text-gray-600 text-sm;
+}
