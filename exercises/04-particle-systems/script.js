@@ -55,16 +55,36 @@ class Particle {
   }
 }
 
-class ParticleSystem {
-  constructor(p, amount = 10) {
+class BasicParticle extends Particle {
+  constructor(p, x, y, options) {
+    super(p, x, y, options)
+  }
+
+  draw() {
+    this.p.stroke(0, this.lifespan)
+    this.p.fill(0, this.lifespan)
+
+    this.p.circle(this.position.x, this.position.y, 16)
+  }
+}
+
+class Emitter {
+  constructor(
+    p,
+    { amount = 10, maxEmitted = undefined, particleType = Particle, position = undefined } = {},
+  ) {
     this.p = p
+
+    this.maxEmitted = maxEmitted
+    this.particleType = particleType
+    this.position = position ?? p.createVector(p.width / 2, p.random(0, 20))
 
     this.particles = []
 
     for (let i = 0; i < amount; i++) {
       this.particles.push(
-        new Particle(p, p.random(0, p.width), p.random(0, 20), {
-          lifespan: p.random(100, 500),
+        new this.particleType(p, this.position.x, this.position.y, {
+          lifespan: p.random(100, 400),
         }),
       )
     }
@@ -85,12 +105,56 @@ class ParticleSystem {
     // Replace dead particles
     this.particles = this.particles.map((particle) => {
       if (particle.isDead()) {
-        particle = new Particle(this.p, this.p.width / 2, 20)
+        particle = new this.particleType(this.p, this.position.x, this.position.y, {
+          lifespan: this.p.random(100, 400),
+        })
+
+        if (this.maxEmitted !== undefined) {
+          this.maxEmitted -= 1
+        }
       }
       return particle
     })
   }
+
+  isDead() {
+    return this.maxEmitted === undefined ? false : this.maxEmitted <= 0
+  }
 }
+
+// 4.5
+new p5((p) => {
+  let emitters = []
+  p.setup = () => {
+    const canvas = p.createCanvas(640, 240)
+    canvas.parent("4.5")
+  }
+
+  p.mouseClicked = () => {
+    emitters.push(
+      new Emitter(p, {
+        particleType: BasicParticle,
+        position: p.createVector(p.mouseX, p.mouseY),
+        maxEmitted: 25,
+      }),
+    )
+  }
+
+  p.draw = () => {
+    p.background(255)
+
+    emitters = emitters
+      .map((e) => {
+        if (e.isDead()) {
+          return null
+        } else {
+          e.run()
+          return e
+        }
+      })
+      .filter((e) => !!e)
+  }
+})
 
 // 4.3
 new p5((p) => {
@@ -99,7 +163,29 @@ new p5((p) => {
     const canvas = p.createCanvas(640, 240)
     canvas.parent("4.3")
 
-    system = new ParticleSystem(p)
+    system = new Emitter(p, {
+      particleType: BasicParticle,
+      position: p.createVector(p.mouseX, p.mouseY),
+    })
+  }
+
+  p.draw = () => {
+    p.background(255)
+
+    system.position = p.createVector(p.mouseX, p.mouseY)
+
+    system.run()
+  }
+})
+
+// 4.2
+new p5((p) => {
+  let system
+  p.setup = () => {
+    const canvas = p.createCanvas(640, 240)
+    canvas.parent("4.2")
+
+    system = new Emitter(p)
   }
 
   p.draw = () => {
