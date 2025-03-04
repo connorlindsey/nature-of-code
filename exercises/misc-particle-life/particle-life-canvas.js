@@ -121,6 +121,20 @@ function updateParticles() {
       totalForceX *= c.rMax * c.attractionStrength
       totalForceY *= c.rMax * c.attractionStrength
 
+      // Repulse from edges
+      const edgeMargin = 0.01
+      const edgeRepulsion = 0.1
+      if (positionsX[i] < edgeMargin) {
+        totalForceX += edgeRepulsion
+      } else if (positionsX[i] > 1 - edgeMargin) {
+        totalForceX -= edgeRepulsion
+      }
+      if (positionsY[i] < edgeMargin) {
+        totalForceY += edgeRepulsion
+      } else if (positionsY[i] > 1 - edgeMargin) {
+        totalForceY -= edgeRepulsion
+      }
+
       velocitiesX[i] *= frictionFactor
       velocitiesY[i] *= frictionFactor
 
@@ -140,9 +154,15 @@ function updateParticles() {
       positionsX[i] += velocitiesX[i] * c.timeStep
       positionsY[i] += velocitiesY[i] * c.timeStep
 
+      // TODO: Make based on wrap setting
+      // Constrain positions
+      // TODO: Move away from edges
+      positionsX[i] = Math.max(0, Math.min(positionsX[i], 1))
+      positionsY[i] = Math.max(0, Math.min(positionsY[i], 1))
+
       // Wrap positions
-      positionsX[i] = ((positionsX[i] % 1) + 1) % 1
-      positionsY[i] = ((positionsY[i] % 1) + 1) % 1
+      // positionsX[i] = ((positionsX[i] % 1) + 1) % 1
+      // positionsY[i] = ((positionsY[i] % 1) + 1) % 1
     }
   }
 }
