@@ -1,52 +1,101 @@
 import GUI from "lil-gui"
 import p5 from "p5"
 
-// Particle Life
-
-// TODO: Only 1 color and hard-coded attraction values to start testing
-
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//           CONFIG
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 const gui = new GUI()
-let debug = {
-  particleCount: 100,
-  particleSize: 8,
-  colors: ["red", "blue"],
-  attractions: [
-    [1, -1],
-    [1, 1],
-  ],
-  damping: 0.8,
-  beta: 0.3,
-  rMax: 100,
+const c = {
+  n: 100,
+  timeStep: 0.2,
+  frictionHalfLife: 0.5,
+  rMin: 0.3,
+  rMax: 0.25,
+  numColors: 4,
+  attractionStrength: 25,
+  matrix: [],
+  randomWhenStopped: 0.05,
+  spacialPartition: {
+    cellCount: 5,
+    draw: true,
+  },
 }
 
-// TODO: Add presets or ability to randomize
+let frictionFactor = Math.pow(0.5, c.timeStep / c.frictionHalfLife)
+
+// TODO: Matrix presets or randomize
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//          UTILS
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function makeRandomAttractionMatrix() {
+  const rows = []
+  for (let i = 0; i < c.numColors; i++) {
+    const row = []
+    for (let j = 0; j < c.numColors; j++) {
+      // 1. Purely random
+      // row.push(Math.random() * 2 - 1)
+
+      // 2. Not towards 0
+      row.push(Math.random() < 0.5 ? -1 + Math.random() * 0.7 : 0.3 + Math.random() * 0.7)
+    }
+    rows.push(row)
+  }
+  return rows
+}
+
+function force(r, a) {
+  const beta = c.rMin
+  if (r < beta) {
+    return r / beta - 1
+  } else if (beta < r && r < 1) {
+    return a * (1 - Math.abs(2 * r - 1 - beta) / (1 - beta))
+  } else {
+    return 0
+  }
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//          MAIN
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 new p5((p) => {
+  let grid = []
   let particles = []
 
-  gui.add(debug, "particleCount", 1, 1000, 1).onChange(initParticles)
-  // TODO: Play around with the attraction values
-  // debug.attractions = debug.colors.map(() => debug.colors.map(() => Math.random() * 2 - 0.5))
+  gui.add({ Restart: init }, "Restart")
+  gui.add(c, "n", 50, 200, 1).onChange(init)
+  // gui.add(c, "timeStep", 0.001, 0.01, 0.001)
+  // gui.add(c, "frictionHalfLife", 0.1, 1, 0.1).onChange(() => {
+  //   frictionFactor = Math.pow(0.5, c.timeStep / c.frictionHalfLife)
+  // })
+  gui.add(c, "rMin", 0.01, 1, 0.01)
+  gui.add(c, "rMax", 0.01, 0.5, 0.01)
+  gui.add(c, "numColors", 1, 25, 1).onChange(init)
+  gui.add(c, "attractionStrength", 1, 100, 1)
+  gui.add(c, "randomWhenStopped", 0, 0.1, 0.01)
 
-  function initParticles() {
-    console.table(debug.attractions)
+  const spacialPartition = gui.addFolder("Spacial Partition")
+  spacialPartition.add(c.spacialPartition, "draw")
+
+  function init() {
     particles = []
-
-    for (let i = 0; i < debug.particleCount; i++) {
-      particles.push(
-        new Particle(
-          p,
-          Math.random() * p.width,
-          Math.random() * p.height,
-          debug.colors[i % debug.colors.length],
-        ),
-      )
+    grid = Array.from({ length: c.spacialPartition.cellCount }, () =>
+      Array.from({ length: c.spacialPartition.cellCount }, () => []),
+    )
+    c.matrix = makeRandomAttractionMatrix()
+    for (let i = 0; i < c.n; i++) {
+      let x = Math.random()
+      let y = Math.random()
+      let color = Math.floor(Math.random() * c.numColors)
+      particles.push(new Particle(p, x, y, color))
     }
   }
 
   p.setup = () => {
     p.createCanvas(window.innerWidth, window.innerHeight)
-    initParticles()
+    init()
+    // p.frameRate(30)
   }
 
   p.windowResized = () => {
@@ -54,11 +103,65 @@ new p5((p) => {
   }
 
   p.draw = () => {
+    updateParticles()
+
     p.background(10)
 
     for (let particle of particles) {
-      particle.update(particles)
+      particle.update()
       particle.draw()
+    }
+  }
+
+  function updateParticles() {
+    for (let i = 0; i < c.n; i++) {
+      const particle = particles[i]
+
+      // Update velocities
+      for (let i = 0; i < c.n; i++) {
+        let totalForce = p.createVector(0, 0)
+
+        for (let j = 0; j < c.n; j++) {
+          if (i === j) continue
+
+          const other = particles[j]
+
+          // TODO: Update
+          const r = p5.Vector.sub(particle.pos, other.pos)
+          const mag = r.mag()
+
+          if (mag > 0 && mag < c.rMax) {
+            const f = force(mag / c.rMax, c.matrix[particle.color][other.color])
+            totalForce.add(p.createVector(r.x / mag, r.y / mag).mult(f))
+          }
+        }
+
+        totalForce.mult((c.rMax * c.attractionStrength) / 100000 / 2)
+
+        // Repulse from edges
+        const edgeMargin = 0.025
+        const edgeRepulsion = 0.0001
+        if (particle.pos.x < edgeMargin) {
+          totalForce.add(p.createVector(edgeRepulsion, 0))
+        } else if (particle.pos.x > 1 - edgeMargin) {
+          totalForce.add(p.createVector(-edgeRepulsion, 0))
+        }
+        if (particle.pos.y < edgeMargin) {
+          totalForce.add(p.createVector(0, edgeRepulsion))
+        } else if (particle.pos.y > 1 - edgeMargin) {
+          totalForce.add(p.createVector(0, -edgeRepulsion))
+        }
+
+        particle.applyForce(totalForce)
+      }
+
+      // Randomly move if stopped
+      const minSpeed = 0.00005
+      if (particle.vel.mag() < minSpeed) {
+        particle.applyForce(
+          p.createVector(Math.random() * 2 - 1, Math.random() * 2 - 1).mult(c.randomWhenStopped),
+        )
+      }
     }
   }
 })
@@ -68,69 +171,30 @@ class Particle {
     this.p = p
     this.pos = this.p.createVector(x, y)
     this.vel = this.p.createVector(0, 0)
+    this.acc = this.p.createVector(0, 0)
     this.color = color
+    this.mass = 1
   }
 
-  update(particles) {
-    let force = this.p.createVector(0, 0)
-
-    for (let other of particles) {
-      // TODO: Improve to only look at nearby particles
-      if (other === this) continue
-
-      let dir = this.p.createVector(other.pos.x, other.pos.y).sub(this.pos)
-      let dist = dir.mag()
-
-      /**
-       * getForce(distance / rMax, attraction) * rMax
-       * getForce(distance, attraction) {
-       * b = 0.3
-       * if (distance < b) {
-       *  return distance / b - 1
-       * } else if (b < distance && distance < 1) {
-       *  return attraction * (1 - Math.abs(2 * distance - 1 - beta) / (1 - beta))
-       * } else {
-       *  return 0
-       * }
-       */
-
-      if (dist < 20) {
-        force.add(dir.setMag(-2))
-      } else if (dist < 250) {
-        // TODO: Get the attraction value from the debug.attractions array
-        let thisColorIndex = debug.colors.indexOf(this.color)
-        let otherColorIndex = debug.colors.indexOf(other.color)
-        force.add(dir.setMag(debug.attractions[thisColorIndex][otherColorIndex]))
-      }
-
-      // const maxRadius = 100
-      // const minRadius = 1
-      // if (dist > maxRadius) {
-      //   force.add(dir.setMag(1))
-      // } else if (dist < minRadius) {
-      //   force.add(dir.setMag(1 / dist))
-      // } else {
-      //   force.add(dir.setMag(1 / dist))
-      // }
-
-      // let thisColorIndex = debug.colors.indexOf(this.color)
-      // let otherColorIndex = debug.colors.indexOf(other.color)
-      // force.mult(debug.attractions[thisColorIndex][otherColorIndex] * 10)
-
-      // TODO: Map around edges
-    }
-
-    console.log({ force })
-
-    // Apply friction
-    force.mult(debug.damping)
-
-    this.vel.add(force)
+  update() {
+    this.vel.add(this.acc)
+    this.vel.mult(frictionFactor)
     this.pos.add(this.vel)
+    this.acc.mult(0)
+
+    // Constrain position between 0 and 1
+    this.pos.x = Math.max(0, Math.min(1, this.pos.x))
+    this.pos.y = Math.max(0, Math.min(1, this.pos.y))
+  }
+
+  applyForce(force) {
+    let f = force.copy()
+    f.div(this.mass)
+    this.acc.add(f)
   }
 
   draw() {
-    this.p.fill(this.color)
-    this.p.circle(this.pos.x, this.pos.y, debug.particleSize)
+    this.p.fill(`hsl(${360 * (this.color / c.numColors)}, 100%, 50%)`)
+    this.p.circle(this.pos.x * this.p.width, this.pos.y * this.p.height, 8)
   }
 }

@@ -18,7 +18,7 @@ window.addEventListener("resize", resizeCanvas)
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 const gui = new GUI()
 const c = {
-  n: 150,
+  n: 5,
   timeStep: 0.002,
   frictionHalfLife: 0.4,
   rMin: 0.3,
@@ -27,6 +27,10 @@ const c = {
   attractionStrength: 2,
   matrix: [],
   randomWhenStopped: 0.05,
+  spacialPartition: {
+    cellCount: 5,
+    draw: true,
+  },
 }
 
 let frictionFactor = Math.pow(0.5, c.timeStep / c.frictionHalfLife)
@@ -42,6 +46,10 @@ gui.add(c, "rMax", 0.01, 0.25, 0.01)
 gui.add(c, "numColors", 1, 25, 1).onChange(init)
 gui.add(c, "attractionStrength", 1, 10, 1)
 gui.add(c, "randomWhenStopped", 0, 0.1, 0.01)
+
+const spacialPartition = gui.addFolder("Spacial Partition")
+spacialPartition.add(c.spacialPartition, "draw")
+
 // TODO: Matrix presets
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -78,6 +86,7 @@ function force(r, a) {
 //          MAIN
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+let grid = []
 const colors = new Int32Array(c.n)
 const positionsX = new Float32Array(c.n)
 const positionsY = new Float32Array(c.n)
@@ -85,6 +94,9 @@ const velocitiesX = new Float32Array(c.n)
 const velocitiesY = new Float32Array(c.n)
 
 function init() {
+  grid = Array.from({ length: c.spacialPartition.cellCount }, () =>
+    Array.from({ length: c.spacialPartition.cellCount }, () => []),
+  )
   c.matrix = makeRandomAttractionMatrix()
   for (let i = 0; i < c.n; i++) {
     colors[i] = Math.floor(Math.random() * c.numColors)
@@ -106,7 +118,6 @@ function updateParticles() {
       for (let j = 0; j < c.n; j++) {
         if (i === j) continue
 
-        // TODO: Handle wrapping to check across edges
         const rx = positionsX[j] - positionsX[i]
         const ry = positionsY[j] - positionsY[i]
         const r = Math.hypot(rx, ry)
@@ -167,13 +178,36 @@ function updateParticles() {
   }
 }
 
+let frameCount = 0
+
 function loop() {
   // Update particles
   updateParticles()
 
-  // Draw particles
+  if (frameCount % 100 !== 0) {
+    frameCount++
+    requestAnimationFrame(loop)
+    return
+  }
+  console.table(grid)
+
+  // Draw background
   ctx.fillStyle = "black"
   ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  if (c.spacialPartition.draw) {
+    // Draw grid
+    ctx.strokeStyle = "rgba(128, 128, 128, 0.5)"
+    const cellWidth = canvas.width / c.spacialPartition.cellCount
+    const cellHeight = canvas.height / c.spacialPartition.cellCount
+    for (let i = 0; i < c.spacialPartition.cellCount; i++) {
+      for (let j = 0; j < c.spacialPartition.cellCount; j++) {
+        ctx.strokeRect(i * cellWidth, j * cellHeight, cellWidth, cellHeight)
+      }
+    }
+  }
+
+  // Draw particles
 
   for (let i = 0; i < c.n; i++) {
     ctx.beginPath()
@@ -183,6 +217,8 @@ function loop() {
     ctx.fillStyle = `hsl(${360 * (colors[i] / c.numColors)}, 100%, 50%)`
     ctx.fill()
   }
+
+  frameCount++
 
   requestAnimationFrame(loop)
 }
