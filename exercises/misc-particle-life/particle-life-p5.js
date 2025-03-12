@@ -6,14 +6,15 @@ import p5 from "p5"
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 const gui = new GUI()
 const c = {
-  n: 1000,
-  friction: 0.15,
+  n: 100,
+  timeStep: 0.002,
+  friction: 0.04,
   rMin: 0.3,
   rMax: 0.15,
-  numColors: 6,
-  attractionStrength: 50,
+  numColors: 4,
+  attractionStrength: 2,
   matrix: [],
-  randomWhenStopped: 0.2,
+  randomWhenStopped: 0,
   spacialPartition: {
     cellCount: 5,
     draw: false,
@@ -42,7 +43,7 @@ function makeRandomAttractionMatrix() {
 }
 
 function force(r, a) {
-  const beta = c.rMin / 10
+  const beta = c.rMin
   if (r < beta) {
     return r / beta - 1
   } else if (beta < r && r < 1) {
@@ -75,16 +76,18 @@ new p5((p) => {
   spacialPartition.add(c.spacialPartition, "draw")
 
   function init() {
-    particles = []
-
+    // Setup spacial partitioning
     c.spacialPartition.cellCount = Math.floor(1 / c.rMax)
     cellSize = 1 / c.spacialPartition.cellCount
-
     grid = Array.from({ length: c.spacialPartition.cellCount }, () =>
       Array.from({ length: c.spacialPartition.cellCount }, () => []),
     )
 
+    // Generate attraction matrix
     c.matrix = makeRandomAttractionMatrix()
+
+    // Init particles
+    particles = []
     for (let i = 0; i < c.n; i++) {
       let x = Math.random()
       let y = Math.random()
@@ -96,7 +99,7 @@ new p5((p) => {
   p.setup = () => {
     p.createCanvas(window.innerWidth, window.innerHeight)
     init()
-    // p.frameRate(30)
+    // p.frameRate(10)
   }
 
   p.windowResized = () => {
@@ -126,15 +129,15 @@ new p5((p) => {
     }
 
     for (let particle of particles) {
-      particle.update()
+      // particle.update()
       particle.draw()
     }
 
-    if (p.frameCount % 2 === 0) {
+    if (p.frameCount % 3 === 0) {
       fps = p.frameRate()
     }
     p.fill(255)
-    p.text(`FPS: ${fps.toFixed(3)}`, 12, 16)
+    p.text(`FPS: ${fps.toFixed(3)}`, 6, 16)
   }
 
   function updateParticles() {
@@ -142,11 +145,12 @@ new p5((p) => {
       const particle = particles[i]
 
       // Update velocities
-
-      let totalForce = p.createVector(0, 0)
+      let totalForceX = 0
+      let totalForceY = 0
 
       // ! Check all other particles
       // for (let j = 0; j < c.n; j++) {
+      // const adjacentParticles = [...particles]
 
       // * Check adjacent cells
       const adjacentParticles = []
@@ -171,41 +175,66 @@ new p5((p) => {
       for (const other of adjacentParticles) {
         if (particle.id === other.id) continue
 
-        // TODO: Update
-        const r = p5.Vector.sub(particle.pos, other.pos)
-        const mag = r.mag()
+        const rx = other.posX - particle.posX
+        const ry = other.posY - particle.posY
+        const r = Math.hypot(rx, ry)
 
-        if (mag > 0 && mag < c.rMax) {
-          const f = force(mag / c.rMax, c.matrix[particle.color][other.color])
-          totalForce.add(p.createVector(r.x / mag, r.y / mag).mult(f))
+        if (r > 0 && r < c.rMax) {
+          const f = force(r / c.rMax, c.matrix[particle.color][other.color])
+          totalForceX += (rx / r) * f
+          totalForceY += (ry / r) * f
         }
       }
 
-      totalForce.mult((c.rMax * c.attractionStrength) / 10000 / 5)
+      totalForceX *= c.rMax * c.attractionStrength
+      totalForceY *= c.rMax * c.attractionStrength
 
       // Repulse from edges
-      const edgeMargin = 0.025
-      const edgeRepulsion = 0.02
-      if (particle.pos.x < edgeMargin) {
-        totalForce.add(p.createVector(edgeRepulsion, 0))
-      } else if (particle.pos.x > 1 - edgeMargin) {
-        totalForce.add(p.createVector(-edgeRepulsion, 0))
-      }
-      if (particle.pos.y < edgeMargin) {
-        totalForce.add(p.createVector(0, edgeRepulsion))
-      } else if (particle.pos.y > 1 - edgeMargin) {
-        totalForce.add(p.createVector(0, -edgeRepulsion))
-      }
+      // TODO: Add back in maybe
+      // const edgeMargin = 0.025
+      // const edgeRepulsion = 0.00002
+      // if (particle.pos.x < edgeMargin) {
+      //   totalForce.add(p.createVector(edgeRepulsion, 0))
+      // } else if (particle.pos.x > 1 - edgeMargin) {
+      //   totalForce.add(p.createVector(-edgeRepulsion, 0))
+      // }
+      // if (particle.pos.y < edgeMargin) {
+      //   totalForce.add(p.createVector(0, edgeRepulsion))
+      // } else if (particle.pos.y > 1 - edgeMargin) {
+      //   totalForce.add(p.createVector(0, -edgeRepulsion))
+      // }
 
-      particle.applyForce(totalForce)
+      // TODO: Just update position directly
+      // particle.applyForce(totalForce)
+
+      // Friction should be 0.99... etc
+      particle.velX *= 1 - c.friction / 10
+      particle.velY *= 1 - c.friction / 10
+      particle.velX += totalForceX * c.timeStep
+      particle.velY += totalForceY * c.timeStep
 
       // Randomly move if stopped
-      const minSpeed = 0.00005
-      if (particle.vel.mag() < minSpeed) {
-        particle.applyForce(
-          p.createVector(Math.random() * 2 - 1, Math.random() * 2 - 1).mult(c.randomWhenStopped / 100),
-        )
-      }
+      // TODO: Add back in
+      // const minSpeed = 0.00005
+      // if (particle.vel.mag() < minSpeed) {
+      //   particle.vel.add(
+      //     p.createVector(Math.random() * 2 - 1, Math.random() * 2 - 1).mult(c.randomWhenStopped / 1000),
+      //   )
+      // }
+      // particle.update()
+
+      // ! Just velocity
+      particle.posX += particle.velX * c.timeStep
+      particle.posY += particle.velY * c.timeStep
+
+      // Constrain position between 0 and 1
+      // this.pos.x = Math.max(0, Math.min(1, this.pos.x))
+      // this.pos.y = Math.max(0, Math.min(1, this.pos.y))
+
+      // Wrap positions
+      particle.posX = ((particle.posX % 1) + 1) % 1
+      particle.posY = ((particle.posY % 1) + 1) % 1
+      particle.updateCell()
     }
   }
 })
@@ -215,38 +244,42 @@ class Particle {
     this.id = Math.random()
 
     this.p = p
-    this.pos = this.p.createVector(x, y)
-    this.vel = this.p.createVector(0, 0)
-    this.acc = this.p.createVector(0, 0)
+    // this.pos = this.p.createVector(x, y)
+    // this.vel = this.p.createVector(0, 0)
+    // this.acc = this.p.createVector(0, 0)
+    this.posX = x
+    this.posY = y
     this.color = color
     // TODO: Use mass in an interesting way to scale size and force
     // this.mass = this.p.random(0.5, 3)
 
     // Debug
     this.cell = {
-      x: Math.floor(this.pos.x / cellSize),
-      y: Math.floor(this.pos.y / cellSize),
+      x: Math.floor(this.posX / cellSize),
+      y: Math.floor(this.posY / cellSize),
     }
     grid[this.cell.y][this.cell.x].push(this)
   }
 
-  update() {
-    this.vel.add(this.acc)
-    this.vel.mult(1 - c.friction)
-    this.pos.add(this.vel)
-    this.acc.mult(0)
+  // update() {
+  //   // ! w/ acc
+  //   // this.vel.add(this.acc)
+  //   // this.vel.mult(1 - c.friction)
+  //   // this.pos.add(this.vel)
+  //   // this.acc.mult(0)
 
-    // Constrain position between 0 and 1
-    this.pos.x = Math.max(0, Math.min(1, this.pos.x))
-    this.pos.y = Math.max(0, Math.min(1, this.pos.y))
+  //   // // Constrain position between 0 and 1
+  //   // this.pos.x = Math.max(0, Math.min(1, this.pos.x))
+  //   // this.pos.y = Math.max(0, Math.min(1, this.pos.y))
 
-    this.updateCell()
-  }
+  //   // this.updateCell()
+
+  // }
 
   updateCell() {
     // Remove last position from grid if different
-    let x = this.p.constrain(Math.floor(this.pos.x / cellSize), 0, c.spacialPartition.cellCount - 1)
-    let y = this.p.constrain(Math.floor(this.pos.y / cellSize), 0, c.spacialPartition.cellCount - 1)
+    let x = this.p.constrain(Math.floor(this.posX / cellSize), 0, c.spacialPartition.cellCount - 1)
+    let y = this.p.constrain(Math.floor(this.posY / cellSize), 0, c.spacialPartition.cellCount - 1)
     if (this.cell.x !== x || this.cell.y !== y) {
       // Remove from last position
       const idx = grid[this.cell.y][this.cell.x].findIndex((p) => p.id === this.id)
@@ -258,14 +291,14 @@ class Particle {
     }
   }
 
-  applyForce(force) {
-    let f = force.copy()
-    // f.div(this.mass)
-    this.acc.add(f)
-  }
+  // applyForce(force) {
+  //   let f = force.copy()
+  //   // f.div(this.mass)
+  //   this.acc.add(f)
+  // }
 
   draw() {
     this.p.fill(`hsl(${360 * (this.color / c.numColors)}, 100%, 50%)`)
-    this.p.circle(this.pos.x * this.p.width, this.pos.y * this.p.height, 8)
+    this.p.circle(this.posX * this.p.width, this.posY * this.p.height, 8)
   }
 }

@@ -18,15 +18,15 @@ window.addEventListener("resize", resizeCanvas)
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 const gui = new GUI()
 const c = {
-  n: 5,
-  timeStep: 0.002,
+  n: 2000,
+  timeStep: 0.008,
   frictionHalfLife: 0.4,
   rMin: 0.3,
   rMax: 0.1,
   numColors: 6,
   attractionStrength: 2,
   matrix: [],
-  randomWhenStopped: 0.05,
+  randomWhenStopped: 0.0,
   spacialPartition: {
     cellCount: 5,
     draw: true,
@@ -111,70 +111,69 @@ init()
 function updateParticles() {
   for (let i = 0; i < c.n; i++) {
     // Update velocities
-    for (let i = 0; i < c.n; i++) {
-      let totalForceX = 0
-      let totalForceY = 0
 
-      for (let j = 0; j < c.n; j++) {
-        if (i === j) continue
+    let totalForceX = 0
+    let totalForceY = 0
 
-        const rx = positionsX[j] - positionsX[i]
-        const ry = positionsY[j] - positionsY[i]
-        const r = Math.hypot(rx, ry)
+    for (let j = 0; j < c.n; j++) {
+      if (i === j) continue
 
-        if (r > 0 && r < c.rMax) {
-          const f = force(r / c.rMax, c.matrix[colors[i]][colors[j]])
-          totalForceX += (rx / r) * f
-          totalForceY += (ry / r) * f
-        }
+      const rx = positionsX[j] - positionsX[i]
+      const ry = positionsY[j] - positionsY[i]
+      const r = Math.hypot(rx, ry)
+
+      if (r > 0 && r < c.rMax) {
+        const f = force(r / c.rMax, c.matrix[colors[i]][colors[j]])
+        totalForceX += (rx / r) * f
+        totalForceY += (ry / r) * f
       }
-
-      totalForceX *= c.rMax * c.attractionStrength
-      totalForceY *= c.rMax * c.attractionStrength
-
-      // Repulse from edges
-      const edgeMargin = 0.01
-      const edgeRepulsion = 0.1
-      if (positionsX[i] < edgeMargin) {
-        totalForceX += edgeRepulsion
-      } else if (positionsX[i] > 1 - edgeMargin) {
-        totalForceX -= edgeRepulsion
-      }
-      if (positionsY[i] < edgeMargin) {
-        totalForceY += edgeRepulsion
-      } else if (positionsY[i] > 1 - edgeMargin) {
-        totalForceY -= edgeRepulsion
-      }
-
-      velocitiesX[i] *= frictionFactor
-      velocitiesY[i] *= frictionFactor
-
-      velocitiesX[i] += totalForceX * c.timeStep
-      velocitiesY[i] += totalForceY * c.timeStep
     }
+
+    totalForceX *= c.rMax * c.attractionStrength
+    totalForceY *= c.rMax * c.attractionStrength
+
+    // Repulse from edges
+    const edgeMargin = 0.01
+    const edgeRepulsion = 0.1
+    if (positionsX[i] < edgeMargin) {
+      totalForceX += edgeRepulsion
+    } else if (positionsX[i] > 1 - edgeMargin) {
+      totalForceX -= edgeRepulsion
+    }
+    if (positionsY[i] < edgeMargin) {
+      totalForceY += edgeRepulsion
+    } else if (positionsY[i] > 1 - edgeMargin) {
+      totalForceY -= edgeRepulsion
+    }
+
+    velocitiesX[i] *= frictionFactor
+    velocitiesY[i] *= frictionFactor
+
+    velocitiesX[i] += totalForceX * c.timeStep
+    velocitiesY[i] += totalForceY * c.timeStep
 
     // Randomly move if stopped
-    const minSpeed = 0.01
-    if (Math.abs(velocitiesX[i]) < minSpeed && Math.abs(velocitiesY[i]) < minSpeed) {
-      velocitiesX[i] = (Math.random() * 2 - 1) * c.randomWhenStopped
-      velocitiesY[i] = (Math.random() * 2 - 1) * c.randomWhenStopped
-    }
+    // const minSpeed = 0.01
+    // if (Math.abs(velocitiesX[i]) < minSpeed && Math.abs(velocitiesY[i]) < minSpeed) {
+    //   velocitiesX[i] = (Math.random() * 2 - 1) * c.randomWhenStopped
+    //   velocitiesY[i] = (Math.random() * 2 - 1) * c.randomWhenStopped
+    // }
+  }
 
-    // Update positions
-    for (let i = 0; i < c.n; i++) {
-      positionsX[i] += velocitiesX[i] * c.timeStep
-      positionsY[i] += velocitiesY[i] * c.timeStep
+  // Update positions
+  for (let i = 0; i < c.n; i++) {
+    positionsX[i] += velocitiesX[i] * c.timeStep
+    positionsY[i] += velocitiesY[i] * c.timeStep
 
-      // TODO: Make based on wrap setting
-      // Constrain positions
-      // TODO: Move away from edges
-      positionsX[i] = Math.max(0, Math.min(positionsX[i], 1))
-      positionsY[i] = Math.max(0, Math.min(positionsY[i], 1))
+    // TODO: Make based on wrap setting
+    // Constrain positions
+    // TODO: Move away from edges
+    // positionsX[i] = Math.max(0, Math.min(positionsX[i], 1))
+    // positionsY[i] = Math.max(0, Math.min(positionsY[i], 1))
 
-      // Wrap positions
-      // positionsX[i] = ((positionsX[i] % 1) + 1) % 1
-      // positionsY[i] = ((positionsY[i] % 1) + 1) % 1
-    }
+    // Wrap positions
+    positionsX[i] = ((positionsX[i] % 1) + 1) % 1
+    positionsY[i] = ((positionsY[i] % 1) + 1) % 1
   }
 }
 
@@ -184,12 +183,12 @@ function loop() {
   // Update particles
   updateParticles()
 
-  if (frameCount % 100 !== 0) {
-    frameCount++
-    requestAnimationFrame(loop)
-    return
-  }
-  console.table(grid)
+  // if (frameCount % 100 !== 0) {
+  //   frameCount++
+  //   requestAnimationFrame(loop)
+  //   return
+  // }
+  // console.table(grid)
 
   // Draw background
   ctx.fillStyle = "black"
