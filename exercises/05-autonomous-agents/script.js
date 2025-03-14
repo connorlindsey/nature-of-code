@@ -312,3 +312,115 @@ new p5((p) => {
     }
   }
 })
+
+//
+// Quadtree
+//
+
+class Point {
+  constructor(x, y) {
+    this.x = x
+    this.y = y
+  }
+}
+
+class Rectangle {
+  constructor(x, y, w, h) {
+    this.x = x
+    this.y = y
+    this.w = w
+    this.h = h
+  }
+
+  contains(p) {
+    return p.x >= this.x - this.w && p.x < this.x + this.w && p.y >= this.y - this.h && p.y < this.y + this.h
+  }
+}
+
+class Quadtree {
+  constructor(p, boundary, capacity) {
+    this.p = p
+    this.boundary = boundary
+    this.capacity = capacity
+    this.points = []
+    this.divided = false
+  }
+
+  insert(point) {
+    if (!this.boundary.contains(point)) return false
+
+    if (this.points.length < this.capacity) {
+      this.points.push(point)
+    } else {
+      if (!this.divided) {
+        this.subdivide()
+      }
+
+      return this.ne.insert(point) || this.nw.insert(point) || this.se.insert(point) || this.sw.insert(point)
+    }
+  }
+
+  subdivide() {
+    // Create subdivisions
+    let x = this.boundary.x
+    let y = this.boundary.y
+    let w = this.boundary.w
+    let h = this.boundary.h
+    let ne = new Rectangle(x + w / 2, y - h / 2, w / 2, h / 2)
+    this.ne = new Quadtree(this.p, ne, this.capacity)
+    let nw = new Rectangle(x - w / 2, y - h / 2, w / 2, h / 2)
+    this.nw = new Quadtree(this.p, nw, this.capacity)
+    let se = new Rectangle(x + w / 2, y + h / 2, w / 2, h / 2)
+    this.se = new Quadtree(this.p, se, this.capacity)
+    let sw = new Rectangle(x - w / 2, y + h / 2, w / 2, h / 2)
+    this.sw = new Quadtree(this.p, sw, this.capacity)
+
+    // Mark as divided
+    this.divided = true
+  }
+
+  show() {
+    // Draw boundary
+    this.p.noFill()
+    this.p.stroke("white")
+    this.p.strokeWeight(1)
+
+    if (this.divided) {
+      this.ne.show()
+      this.nw.show()
+      this.se.show()
+      this.sw.show()
+    } else {
+      this.p.rectMode(this.p.CENTER)
+      this.p.rect(this.boundary.x, this.boundary.y, this.boundary.w * 2, this.boundary.h * 2)
+    }
+
+    // Draw points
+    for (const p of this.points) {
+      this.p.strokeWeight(4)
+      this.p.point(p.x, p.y)
+    }
+  }
+}
+
+new p5((p) => {
+  let qtree
+  p.setup = () => {
+    const canvas = p.createCanvas(500, 500)
+    canvas.parent("quadtree")
+
+    let boundary = new Rectangle(p.width / 2, p.height / 2, p.width / 2, p.height / 2)
+    qtree = new Quadtree(p, boundary, 4)
+
+    for (let i = 0; i < 100; i++) {
+      qtree.insert(new Point(p.random(p.width), p.random(p.height)))
+    }
+
+    console.log(qtree)
+  }
+
+  p.draw = () => {
+    p.background(0)
+    qtree?.show()
+  }
+})
