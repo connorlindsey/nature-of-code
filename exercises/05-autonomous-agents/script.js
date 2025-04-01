@@ -335,6 +335,15 @@ class Rectangle {
   contains(p) {
     return p.x >= this.x - this.w && p.x < this.x + this.w && p.y >= this.y - this.h && p.y < this.y + this.h
   }
+
+  intersects(a) {
+    return !(
+      a.x - a.w > this.x + this.w ||
+      a.x + a.w < this.x - this.w ||
+      a.y - a.y > this.y + this.y ||
+      a.y + a.y < this.y - this.y
+    )
+  }
 }
 
 class Quadtree {
@@ -379,10 +388,35 @@ class Quadtree {
     this.divided = true
   }
 
+  query(area, found) {
+    if (!found) {
+      found = []
+    }
+
+    if (!this.boundary.intersects(area)) {
+      return
+    }
+
+    for (let p of this.points) {
+      if (area.contains(p)) {
+        found.push(p)
+      }
+
+      if (this.divided) {
+        this.ne.query(area, found)
+        this.nw.query(area, found)
+        this.se.query(area, found)
+        this.sw.query(area, found)
+      }
+    }
+
+    return found
+  }
+
   show() {
     // Draw boundary
     this.p.noFill()
-    this.p.stroke("white")
+    this.p.stroke("rgba(0, 0, 0, 0.2)")
     this.p.strokeWeight(1)
 
     if (this.divided) {
@@ -405,22 +439,43 @@ class Quadtree {
 
 new p5((p) => {
   let qtree
+
+  const init = () => {
+    let boundary = new Rectangle(p.width / 2, p.height / 2, p.width / 2, p.height / 2)
+    qtree = new Quadtree(p, boundary, 4)
+
+    for (let i = 0; i < debug.qt.points; i++) {
+      qtree.insert(new Point(p.random(p.width), p.random(p.height)))
+    }
+  }
+
+  const qtdbg = gui.addFolder("Quadtree")
+  debug.qt = { points: 500 }
+  debug.qt.window = { x: 100, y: 100 }
+  qtdbg.add(debug.qt, "points", 10, 5000, 1).onChange(init)
+  qtdbg.add(debug.qt.window, "x", 10, 200, 1)
+  qtdbg.add(debug.qt.window, "y", 10, 200, 1)
+
   p.setup = () => {
     const canvas = p.createCanvas(500, 500)
     canvas.parent("quadtree")
 
-    let boundary = new Rectangle(p.width / 2, p.height / 2, p.width / 2, p.height / 2)
-    qtree = new Quadtree(p, boundary, 4)
-
-    for (let i = 0; i < 100; i++) {
-      qtree.insert(new Point(p.random(p.width), p.random(p.height)))
-    }
-
-    console.log(qtree)
+    init()
   }
 
   p.draw = () => {
-    p.background(0)
+    p.background(255)
     qtree?.show()
+
+    let searchArea = new Rectangle(p.mouseX, p.mouseY, debug.qt.window.x / 2, debug.qt.window.y / 2)
+    p.strokeWeight(1.5)
+    p.stroke("rgba(100, 200, 250, 1)")
+    p.rect(searchArea.x, searchArea.y, searchArea.w * 2, searchArea.h * 2)
+
+    let active = qtree.query(searchArea) || []
+    p.strokeWeight(4)
+    for (const pt of active) {
+      p.point(pt.x, pt.y)
+    }
   }
 })

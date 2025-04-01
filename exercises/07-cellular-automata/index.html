@@ -3,17 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Misc - Particle Life</title>
+    <title>07 - Cellular Automata</title>
     <link rel="stylesheet" href="../../styles.css" />
-    <script type="module" src="./particle-life-2.js" defer></script>
-    <!-- <script type="module" src="./particle-life-canvas.js" defer></script> -->
+    <script type="module" src="./script.js" defer></script>
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦠</text></svg>"
     />
-    <style></style>
+    <style>
+      canvas {
+        @apply border mt-2 rounded;
+      }
+    </style>
   </head>
-  <body>
-    <!-- <canvas id="canvas" style="width: 100vw; height: 100vh"></canvas> -->
+  <body class="wrapper space-y-8">
+    <section id="gol">
+      <h2 class="text-xl">Conway's Game of Life</h2>
+      <p class="subtitle">A classic</p>
+    </section>
   </body>
 </html>
